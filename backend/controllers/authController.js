@@ -91,7 +91,28 @@ exports.register = async (req, res, next) => {
     }
     if (password.length < 8) return res.status(400).json({ message: 'Password must contain at least 8 characters' });
     const normalizedEmail = email.trim().toLowerCase();
-    if (await User.findOne({ email: normalizedEmail })) return res.status(409).json({ message: 'Email already registered' });
+    const existingUser = await User.findOne({ email: normalizedEmail }).select(OTP_FIELDS);
+    if (existingUser) {
+      if (existingUser.emailVerified || !(await bcrypt.compare(password, existingUser.password))) {
+        return res.status(409).json({ message: 'Email already registered' });
+      }
+
+      const delivery = await issueOtp(existingUser, 'verify-email');
+      if (!delivery.sent) {
+        return res.status(429).json({
+          message: `A verification code was sent recently. Try again in ${delivery.retryAfterSeconds} seconds.`,
+          retryAfterSeconds: delivery.retryAfterSeconds
+        });
+      }
+      return res.json({
+        message: 'Your verification code is on its way. Check your inbox in a moment.',
+        verificationRequired: true,
+        email: existingUser.email,
+        purpose: 'verify-email',
+        challengeToken: delivery.challengeToken
+      });
+    }
+
     const user = await User.create({
       name: name.trim(),
       email: normalizedEmail,
@@ -122,8 +143,9 @@ exports.login = async (req, res, next) => {
     const normalizedEmail = email.trim().toLowerCase();
     const user = await User.findOne({ email: normalizedEmail }).select(OTP_FIELDS);
     if (!user || !(await bcrypt.compare(password || '', user.password))) return res.status(401).json({ message: 'Invalid email or password' });
-    const purpose = user.emailVerified ? 'login' : 'verify-email';
-    const delivery = await issueOtp(user, purpose);
+    if (user.emailVerified) return createSession(user, res);
+
+    const delivery = await issueOtp(user, 'verify-email');
     if (!delivery.sent) {
       return res.status(429).json({ message: `A code was sent recently. Try signing in again in ${delivery.retryAfterSeconds} seconds.` });
     }
@@ -131,7 +153,7 @@ exports.login = async (req, res, next) => {
       message: 'Your verification code is on its way. Check your inbox in a moment.',
       verificationRequired: true,
       email: user.email,
-      purpose,
+      purpose: 'verify-email',
       challengeToken: delivery.challengeToken
     });
   } catch (error) {

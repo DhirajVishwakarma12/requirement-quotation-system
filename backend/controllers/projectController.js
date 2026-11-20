@@ -8,46 +8,46 @@ const { sendQuotationEmail } = require('../utils/mailer');
 
 const suggestions = {
   Basic: [
-    'User registration and login',
-    'Responsive user interface',
-    'Basic dashboard',
-    'Contact form',
-    'User profile management',
-    'Email notifications',
-    'File upload',
-    'Search and filtering',
-    'Data export',
-    'Admin panel'
+    { title: 'User registration and login', description: 'Let visitors create accounts, sign in securely, and access their own information.' },
+    { title: 'Responsive user interface', description: 'Make pages adapt clearly to phone, tablet, and desktop screen sizes.' },
+    { title: 'Basic dashboard', description: 'Show each signed-in user a simple overview and shortcuts to common tasks.' },
+    { title: 'Contact form', description: 'Collect a visitor’s name, contact details, and message for the project team.' },
+    { title: 'User profile management', description: 'Allow users to view and update basic profile information.' },
+    { title: 'Email notifications', description: 'Send users email confirmations or updates for important account and project events.' },
+    { title: 'File upload', description: 'Allow users to attach documents or images with clear file type and size limits.' },
+    { title: 'Search and filtering', description: 'Help users find records by entering keywords and applying simple filters.' },
+    { title: 'Data export', description: 'Let authorized users download selected records in a common format such as CSV.' },
+    { title: 'Admin panel', description: 'Provide staff with a protected area to manage users and core application content.' }
   ],
   Medium: [
-    'Role-based access control',
-    'Admin dashboard',
-    'Search and filtering',
-    'Email notifications',
-    'Data reports',
-    'Team and permission management',
-    'Document management',
-    'Activity history',
-    'Calendar and scheduling',
-    'Payment processing',
-    'Automated workflows',
-    'Multi-language support'
+    { title: 'Role-based access control', description: 'Show pages and actions according to each user’s assigned role.' },
+    { title: 'Admin dashboard', description: 'Give administrators a summary of project activity, key totals, and management actions.' },
+    { title: 'Search and filtering', description: 'Support combined filters and sorting so users can narrow larger result lists.' },
+    { title: 'Email notifications', description: 'Send event-based emails and allow notification preferences where needed.' },
+    { title: 'Data reports', description: 'Summarize records over a chosen period with useful totals and visual charts.' },
+    { title: 'Team and permission management', description: 'Let administrators add team members and control access to shared work.' },
+    { title: 'Document management', description: 'Organize, preview, and manage project documents with relevant access rules.' },
+    { title: 'Activity history', description: 'Record who made important changes and when they happened.' },
+    { title: 'Calendar and scheduling', description: 'Create events, track availability, and display upcoming appointments.' },
+    { title: 'Payment processing', description: 'Connect a payment provider and track payment status and transaction references.' },
+    { title: 'Automated workflows', description: 'Run defined actions automatically when common project events occur.' },
+    { title: 'Multi-language support', description: 'Provide translated interface text and let users choose a supported language.' }
   ],
   Advanced: [
-    'Payment gateway integration',
-    'Real-time notifications',
-    'Analytics dashboard',
-    'Audit logs',
-    'Third-party API integration',
-    'Advanced security',
-    'Live chat and collaboration',
-    'AI-powered recommendations',
-    'Multi-tenant architecture',
-    'Advanced reporting',
-    'Workflow automation',
-    'High-availability infrastructure',
-    'Single sign-on (SSO)',
-    'Data warehouse integration'
+    { title: 'Payment gateway integration', description: 'Integrate a selected payment provider, including secure callbacks and payment reconciliation.' },
+    { title: 'Real-time notifications', description: 'Deliver live in-app updates when relevant project or account events happen.' },
+    { title: 'Analytics dashboard', description: 'Present key performance measures with date filters and drill-down views.' },
+    { title: 'Audit logs', description: 'Maintain protected records of sensitive actions for review and compliance needs.' },
+    { title: 'Third-party API integration', description: 'Exchange data with selected external services using documented APIs and managed credentials.' },
+    { title: 'Advanced security', description: 'Add security controls such as multi-factor sign-in, stronger session rules, and protected data handling.' },
+    { title: 'Live chat and collaboration', description: 'Support real-time conversations, presence, and sharing relevant project files.' },
+    { title: 'AI-powered recommendations', description: 'Suggest useful next steps or content based on approved project data and user context.' },
+    { title: 'Multi-tenant architecture', description: 'Separate organizations so each tenant can access only its own users and project data.' },
+    { title: 'Advanced reporting', description: 'Build configurable reports with multiple data sources, filters, and export options.' },
+    { title: 'Workflow automation', description: 'Create conditional, multi-step processes with status tracking and exception handling.' },
+    { title: 'High-availability infrastructure', description: 'Design deployment, monitoring, and recovery practices to reduce service downtime.' },
+    { title: 'Single sign-on (SSO)', description: 'Allow users to authenticate through a supported identity provider using SAML or OpenID Connect.' },
+    { title: 'Data warehouse integration', description: 'Prepare and transfer selected application data to an analytics warehouse.' }
   ]
 };
 const websiteTypes = [
@@ -101,6 +101,16 @@ function setCurrentBudgetOffer(project, offer, role) {
     confirmedByClient: role === 'client',
     confirmedByAdmin: role === 'admin'
   };
+}
+
+function currentOfferRole(project, negotiation) {
+  if (negotiation.currentOffer?.submittedByRole) return negotiation.currentOffer.submittedByRole;
+  const clientCounterOffer = project.clientCounterOffer;
+  const adminCounterOffer = project.counterOffer;
+  if (clientCounterOffer && (!adminCounterOffer || clientCounterOffer.submittedAt > adminCounterOffer.submittedAt)) {
+    return 'client';
+  }
+  return adminCounterOffer ? 'admin' : 'client';
 }
 
 exports.getSuggestions = (req, res) => {
@@ -163,7 +173,7 @@ exports.createProject = async (req, res) => {
     if (offerNotes !== undefined && (typeof offerNotes !== 'string' || offerNotes.length > 1000)) {
       return res.status(400).json({ message: 'Offer notes must be 1000 characters or fewer' });
     }
-    if (!Array.isArray(selectedFeatures) || selectedFeatures.length === 0 || selectedFeatures.some(feature => typeof feature !== 'string' || !suggestions[level].includes(feature))) {
+    if (!Array.isArray(selectedFeatures) || selectedFeatures.length === 0 || selectedFeatures.some(feature => typeof feature !== 'string' || !suggestions[level].some(suggestion => suggestion.title === feature))) {
       return res.status(400).json({ message: 'Select at least one valid suggested feature' });
     }
     const clientOffer = {
@@ -185,7 +195,13 @@ exports.createProject = async (req, res) => {
       },
       client: req.user._id
     });
-    const features = await Feature.insertMany([...new Set(selectedFeatures)].map(title => ({ project: project._id, title, description: 'Selected by client', createdBy: req.user._id })));
+    const descriptionsByTitle = new Map(suggestions[level].map(suggestion => [suggestion.title, suggestion.description]));
+    const features = await Feature.insertMany([...new Set(selectedFeatures)].map(title => ({
+      project: project._id,
+      title,
+      description: descriptionsByTitle.get(title),
+      createdBy: req.user._id
+    })));
     res.status(201).json({ project, suggestedFeatures: features });
   } catch (e) { res.status(500).json({ message: e.message }); }
 };
@@ -196,6 +212,9 @@ exports.sendCounterOffer = async (req, res, next) => {
     if (!project.clientOffer) return res.status(400).json({ message: 'This project has no client offer to counter' });
     const negotiation = initializeBudgetNegotiation(project);
     if (negotiation.agreedAt) return res.status(409).json({ message: 'This budget has already been agreed' });
+    if (currentOfferRole(project, negotiation) !== 'client') {
+      return res.status(409).json({ message: 'Wait for the client to respond to the current offer before countering again' });
+    }
     const input = parseBudgetOffer(req.body);
     if (!input) {
       return res.status(400).json({ message: 'Enter a valid counter offer of zero or more' });
@@ -224,6 +243,9 @@ exports.sendClientCounterOffer = async (req, res, next) => {
 
     const negotiation = initializeBudgetNegotiation(project);
     if (negotiation.agreedAt) return res.status(409).json({ message: 'This budget has already been agreed' });
+    if (currentOfferRole(project, negotiation) !== 'admin') {
+      return res.status(409).json({ message: 'Wait for the admin to counter the current offer before re-countering' });
+    }
     const input = parseBudgetOffer(req.body);
     if (!input) return res.status(400).json({ message: 'Enter a valid counter offer of zero or more' });
 
@@ -271,6 +293,14 @@ exports.listProjects = async (req, res) => {
   const projects = await Project.find(filter).populate('client', 'name email').populate('developer', 'name email').sort({ createdAt: -1 });
   res.json(projects);
 };
+exports.listDevelopers = async (req, res, next) => {
+  try {
+    const developers = await User.find({ role: 'developer' }).select('_id name email').sort({ name: 1 });
+    return res.json(developers);
+  } catch (error) {
+    return next(error);
+  }
+};
 exports.getProject = async (req, res) => {
   const project = await Project.findById(req.params.id).populate('client', 'name email').populate('developer', 'name email');
   if (!project) return res.status(404).json({ message: 'Project not found' });
@@ -288,7 +318,7 @@ exports.assignDeveloper = async (req, res) => {
   const { developerId } = req.body;
   const developer = await User.findOne({ _id: developerId, role: 'developer' });
   if (!developer) return res.status(404).json({ message: 'Developer not found' });
-  const project = await Project.findByIdAndUpdate(req.params.id, { developer: developer._id }, { new: true });
+  const project = await Project.findByIdAndUpdate(req.params.id, { developer: developer._id }, { new: true }).populate('developer', 'name email');
   if (!project) return res.status(404).json({ message: 'Project not found' });
   res.json(project);
 };
@@ -358,17 +388,84 @@ exports.createAndSendQuotation = async (req, res) => {
   try {
     const project = await Project.findById(req.params.id).populate('client', 'name email').populate('developer', 'name email');
     if (!project) return res.status(404).json({ message: 'Project not found' });
-    const version = await RequirementVersion.findOne({ project: project._id, confirmed: true }).sort({ version: -1 });
-    if (!version) return res.status(400).json({ message: 'Confirm requirements before sending a quotation' });
+    const requestedVersion = req.body.version === undefined || req.body.version === null || req.body.version === ''
+      ? null
+      : Number(req.body.version);
+    if (requestedVersion !== null && (!Number.isInteger(requestedVersion) || requestedVersion < 1)) {
+      return res.status(400).json({ message: 'Select a valid requirement version' });
+    }
+    const versionFilter = { project: project._id, confirmed: true };
+    if (requestedVersion !== null) versionFilter.version = requestedVersion;
+    const version = await RequirementVersion.findOne(versionFilter).sort({ version: -1 });
+    if (!version) {
+      return res.status(400).json({
+        message: requestedVersion === null
+          ? 'Confirm requirements before sending a quotation'
+          : 'The selected requirement version is not confirmed for this project'
+      });
+    }
     if (!project.developer) return res.status(400).json({ message: 'Assign a developer before sending the quotation' });
+    if (!project.client?.email || !project.developer.email) {
+      return res.status(400).json({ message: 'Client and assigned developer must have valid email addresses' });
+    }
     const items = req.body.items || [];
     if (!items.length || items.some(i => !i.description || !Number.isFinite(Number(i.amount)) || Number(i.amount) < 0)) return res.status(400).json({ message: 'Provide valid quotation items' });
     const normalized = items.map(i => ({ description: i.description, amount: Number(i.amount) }));
     const total = normalized.reduce((sum, i) => sum + i.amount, 0);
+    const agreedBudget = project.budgetNegotiation?.agreedAmount;
+    if (Number.isFinite(agreedBudget) && total >= agreedBudget) {
+      return res.status(400).json({
+        message: `Quotation total must be less than the agreed budget of INR ${agreedBudget.toFixed(2)}`
+      });
+    }
     const quotation = await Quotation.create({ project: project._id, version: version.version, items: normalized, total, notes: req.body.notes || '' });
-    const recipients = [project.client.email, project.developer.email];
-    await Promise.all(recipients.map(to => sendQuotationEmail({ to, project, quotation })));
-    quotation.sentAt = new Date(); quotation.sentTo = recipients; await quotation.save();
+    const recipients = [
+      { email: project.client.email, name: project.client.name, role: 'client' },
+      { email: project.developer.email, name: project.developer.name, role: 'developer' }
+    ];
+    const deliveryResults = [];
+    for (const recipient of recipients) {
+      try {
+        const result = await sendQuotationEmail({
+          to: recipient.email,
+          recipientName: recipient.name,
+          recipientRole: recipient.role,
+          project,
+          version,
+          quotation
+        });
+        deliveryResults.push({ status: 'fulfilled', value: result });
+      } catch (reason) {
+        console.error('Quotation email delivery failed', {
+          recipient: recipient.email,
+          code: reason?.code,
+          message: reason?.message || String(reason)
+        });
+        deliveryResults.push({ status: 'rejected', reason });
+      }
+    }
+    const sentTo = deliveryResults
+      .filter(result => result.status === 'fulfilled')
+      .map(result => result.value.recipient);
+    const failedRecipients = deliveryResults.reduce((failed, result, index) => {
+      if (result.status === 'rejected') {
+        failed.push(`${recipients[index].email}: ${result.reason?.message || 'mail delivery failed'}`);
+      }
+      return failed;
+    }, []);
+    quotation.sentTo = sentTo;
+    if (failedRecipients.length) {
+      await quotation.save();
+      return res.status(502).json({
+        message: `Mail server accepted ${sentTo.length} of ${recipients.length} recipient(s). Failed: ${failedRecipients.join(', ')}`,
+        quotation
+      });
+    }
+    quotation.sentAt = new Date();
+    await quotation.save();
     res.status(201).json({ message: 'Quotation emailed to client and developer', quotation });
-  } catch (e) { res.status(500).json({ message: `Quotation email failed: ${e.message}` }); }
+  } catch (e) {
+    console.error('Quotation creation or email sending failed:', e);
+    res.status(500).json({ message: `Quotation email failed: ${e.message}` });
+  }
 };

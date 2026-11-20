@@ -4,6 +4,7 @@ const { protect, allow } = require('../middleware/auth');
 router.use(protect);
 router.get('/', c.listProjects);
 router.get('/suggestions/:level', c.getSuggestions);
+router.get('/developers', allow('admin'), c.listDevelopers);
 router.get('/:id/budget-suggestions', allow('client'), c.getBudgetMessageSuggestions);
 router.post('/', allow('client'), c.createProject);
 router.get('/:id', c.getProject);

@@ -102,6 +102,7 @@ export default function App() {
   const [resendSeconds, setResendSeconds] = useState(0);
   const [authNotice, setAuthNotice] = useState('');
   const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [otpSubmitting, setOtpSubmitting] = useState(false);
   const [otpResending, setOtpResending] = useState(false);
   const otpInputRefs = useRef([]);
@@ -116,7 +117,15 @@ export default function App() {
   const [feature, setFeature] = useState({ title: '', description: '' });
   const [featureMutationInProgress, setFeatureMutationInProgress] = useState(false);
   const [savingVersion, setSavingVersion] = useState(false);
-  const [quotation, setQuotation] = useState({ description: 'Development cost', amount: '0', notes: '' });
+  const [quotation, setQuotation] = useState({ developerCost: '0', otherCosts: '0', notes: '' });
+  const [selectedQuotationVersion, setSelectedQuotationVersion] = useState('');
+  const [quotationSending, setQuotationSending] = useState(false);
+  const [quotationError, setQuotationError] = useState('');
+  const [developers, setDevelopers] = useState([]);
+  const [developersLoading, setDevelopersLoading] = useState(false);
+  const [selectedDeveloperId, setSelectedDeveloperId] = useState('');
+  const [developerAssignmentLoading, setDeveloperAssignmentLoading] = useState(false);
+  const [developerError, setDeveloperError] = useState('');
   const [message, setMessage] = useState('');
   const [budgetMessage, setBudgetMessage] = useState('');
   const [budgetMessageSuggestions, setBudgetMessageSuggestions] = useState([]);
@@ -131,11 +140,14 @@ export default function App() {
 
   async function loadDetail(id) {
     setShowClientBudgetResponse(false);
+    setQuotationError('');
     setDetailLoading(true);
     try {
       const { data } = await api.get(`/projects/${id}`);
       setSelected(id);
       setDetail(data);
+      setSelectedDeveloperId(data.project.developer?._id || '');
+      setSelectedQuotationVersion(String(data.versions.find(version => version.confirmed)?.version || ''));
       setCounterOfferForm({ amount: '', notes: '' });
       setClientCounterOfferForm({ amount: '', notes: '' });
     } catch (e) {
@@ -197,6 +209,10 @@ export default function App() {
   }, [user, authLoading, authChallenge, location.pathname, navigate]);
 
   useEffect(() => {
+    setPasswordVisible(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
     window.clearTimeout(profileCloseTimer.current);
     if (!profileMenuOpen) return undefined;
     profileCloseTimer.current = window.setTimeout(() => setProfileMenuOpen(false), 1000);
@@ -230,6 +246,83 @@ export default function App() {
       });
     return () => { active = false; };
   }, [user]);
+
+  useEffect(() => {
+    if (!user || user.role !== 'admin') {
+      setDevelopers([]);
+      return undefined;
+    }
+    let active = true;
+    setDevelopersLoading(true);
+    setDeveloperError('');
+    api.get('/projects/developers')
+      .then(({ data }) => {
+        if (active) setDevelopers(data);
+      })
+      .catch(e => {
+        if (active) setDeveloperError(e.response?.data?.message || e.message);
+      })
+      .finally(() => {
+        if (active) setDevelopersLoading(false);
+      });
+    return () => { active = false; };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    let active = true;
+    let inFlight = false;
+    const refreshProjects = async () => {
+      if (inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const { data } = await api.get('/projects');
+        if (active) setProjects(data);
+      } catch (e) {
+        if (active) setError(e.response?.data?.message || e.message);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const interval = window.setInterval(refreshProjects, 5000);
+    window.addEventListener('focus', refreshProjects);
+    document.addEventListener('visibilitychange', refreshProjects);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshProjects);
+      document.removeEventListener('visibilitychange', refreshProjects);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !selected || creatingProject) return undefined;
+    let active = true;
+    let inFlight = false;
+    const refreshSelectedProject = async () => {
+      if (inFlight || document.visibilityState === 'hidden') return;
+      inFlight = true;
+      try {
+        const { data } = await api.get(`/projects/${selected}`);
+        if (active) {
+          setDetail(current => current?.project._id === selected ? data : current);
+        }
+      } catch (e) {
+        if (active) setError(e.response?.data?.message || e.message);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const interval = window.setInterval(refreshSelectedProject, 5000);
+    window.addEventListener('focus', refreshSelectedProject);
+    document.addEventListener('visibilitychange', refreshSelectedProject);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refreshSelectedProject);
+      document.removeEventListener('visibilitychange', refreshSelectedProject);
+    };
+  }, [user, selected, creatingProject]);
 
   useEffect(() => {
     if (!user || user.role !== 'client') return;
@@ -350,6 +443,16 @@ export default function App() {
     setAuthSubmitting(true);
     try {
       const { data } = await api.post('/auth/login', { email: form.email, password: form.password });
+      if (data.user) {
+        setUser(data.user);
+        cacheUser(data.user);
+        setAuthChallenge(null);
+        clearOtpInput();
+        setResendSeconds(0);
+        setForm(current => ({ ...current, password: '' }));
+        navigate('/', { replace: true });
+        return;
+      }
       setAuthChallenge({ email: data.email || form.email.trim(), purpose: data.purpose || 'login', challengeToken: data.challengeToken, source: '/login' });
       clearOtpInput();
       setResendSeconds(60);
@@ -512,21 +615,114 @@ export default function App() {
         project: { ...current.project, status: 'confirmed' },
         versions: current.versions.map(version => version._id === id ? data.version : version),
       }));
+      setSelectedQuotationVersion(String(data.version.version));
     } catch (x) {
       setError(x.response?.data?.message || x.message);
     }
   }
 
+  function renderRequirementVersion(version, isCurrent = false) {
+    return (
+      <article className="version" key={version._id}>
+        <div className="inline versionTitle"><b>Version {version.version}</b><span className={version.confirmed ? 'confirmed' : 'status'}>{version.confirmed ? 'CONFIRMED' : 'PENDING'}</span></div>
+        <div className="versionChanges">
+          {version.changes.map((change, index) => (
+            <div className={`versionChange ${change.tag.toLowerCase()}`} key={`${change.featureId || 'change'}-${index}`}>
+              <span className="versionChangeIcon" aria-hidden="true">{change.tag === 'ADDED' ? '+' : change.tag === 'REMOVED' ? '−' : '↻'}</span>
+              <div className="versionChangeBody">
+                <span className={`tag ${change.tag.toLowerCase()}`}>{change.tag === 'ADDED' ? 'NEW REQUIREMENT' : change.tag}</span>
+                <b className="versionChangeTitle">{change.title}</b>
+                {change.description && <p>{change.description}</p>}
+                {change.previous && <small>Previously: {change.previous.title}</small>}
+              </div>
+            </div>
+          ))}
+        </div>
+        <details className="versionSnapshot" open={isCurrent}>
+          <summary>
+            <span>Features included in this version</span>
+            <span className="snapshotCount">{version.snapshot?.length || 0}</span>
+          </summary>
+          {version.snapshot?.length ? (
+            <div className="versionSnapshotList">
+              {version.snapshot.map(feature => (
+                <div className="versionSnapshotFeature" key={feature.featureId}>
+                  <span aria-hidden="true">✓</span>
+                  <div><b>{feature.title}</b>{feature.description && <small>{feature.description}</small>}</div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="muted smallText">No feature snapshot was recorded for this version.</p>}
+        </details>
+        {user.role === 'admin' && !version.confirmed && <button onClick={() => confirmVersion(version._id)}>Confirm this version</button>}
+      </article>
+    );
+  }
+
   async function sendQuotation() {
     const projectId = selected;
+    setQuotationError('');
+    if (!selectedQuotationVersion) {
+      setQuotationError('Select a confirmed requirement version before sending the quotation.');
+      return;
+    }
+    const developerCost = Number(quotation.developerCost);
+    const otherCosts = Number(quotation.otherCosts);
+    if (!Number.isFinite(developerCost) || developerCost < 0 ||
+      !Number.isFinite(otherCosts) || otherCosts < 0) {
+      setQuotationError('Enter valid non-negative developer and other costs.');
+      return;
+    }
+    const total = developerCost + otherCosts;
+    const agreedBudget = detail?.project?.budgetNegotiation?.agreedAmount;
+    if (Number.isFinite(agreedBudget) && total >= agreedBudget) {
+      setQuotationError(`Quotation total must be less than the agreed budget of ${formatCurrency(agreedBudget)}.`);
+      return;
+    }
+    setQuotationSending(true);
     try {
       const { data } = await api.post(`/projects/${projectId}/quotation`, {
-        items: [{ description: quotation.description, amount: Number(quotation.amount) }],
+        items: [
+          { description: 'Developer cost', amount: developerCost },
+          { description: 'Other costs', amount: otherCosts },
+        ],
         notes: quotation.notes,
+        version: Number(selectedQuotationVersion),
       });
       updateProjectDetail(projectId, current => ({ ...current, quotation: data.quotation }));
     } catch (x) {
-      setError(x.response?.data?.message || x.message);
+      if (x.response?.data?.quotation) {
+        updateProjectDetail(projectId, current => ({ ...current, quotation: x.response.data.quotation }));
+      }
+      setQuotationError(x.response?.data?.message || x.message || 'Could not send the quotation.');
+    } finally {
+      setQuotationSending(false);
+    }
+  }
+
+  async function assignDeveloper() {
+    const projectId = selected;
+    if (!projectId || !selectedDeveloperId) {
+      setDeveloperError('Select a developer to assign to this project.');
+      return;
+    }
+    setDeveloperAssignmentLoading(true);
+    setDeveloperError('');
+    try {
+      const { data } = await api.post(`/projects/${projectId}/developer`, {
+        developerId: selectedDeveloperId,
+      });
+      updateProjectDetail(projectId, current => ({
+        ...current,
+        project: { ...current.project, developer: data.developer },
+      }));
+      setProjects(current => current.map(project => project._id === projectId
+        ? { ...project, developer: data.developer }
+        : project));
+    } catch (e) {
+      setDeveloperError(e.response?.data?.message || e.message);
+    } finally {
+      setDeveloperAssignmentLoading(false);
     }
   }
 
@@ -675,6 +871,8 @@ export default function App() {
   const clientConfirmed = budgetNegotiation?.confirmedByClient ?? (offerProposerRole === 'client');
   const adminConfirmed = budgetNegotiation?.confirmedByAdmin ?? (offerProposerRole === 'admin');
   const budgetAgreed = Boolean(budgetNegotiation?.agreedAt);
+  const canAdminCounter = Boolean(!budgetAgreed && activeBudgetOffer && offerProposerRole === 'client');
+  const canClientCounter = Boolean(!budgetAgreed && activeBudgetOffer && offerProposerRole === 'admin');
   const isInfoPage = ['/service', '/contact', '/about'].includes(location.pathname);
   const requirementBusy = featureMutationInProgress || savingVersion;
   const suggestedClientMessages = detail ? [
@@ -785,7 +983,12 @@ export default function App() {
               <form onSubmit={register}>
                 <label>Full name<input placeholder="Your name" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required /></label>
                 <label>Email<input placeholder="you@example.com" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required /></label>
-                <label>Password<input placeholder="At least 8 characters" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength="8" required /></label>
+                <label>Password
+                  <span className="passwordField">
+                    <input placeholder="At least 8 characters" type={passwordVisible ? 'text' : 'password'} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} minLength="8" required />
+                    <button type="button" className="passwordToggle" aria-label={passwordVisible ? 'Hide password' : 'Show password'} aria-pressed={passwordVisible} onClick={() => setPasswordVisible(visible => !visible)}>{passwordVisible ? 'Hide' : 'Show'}</button>
+                  </span>
+                </label>
                 <button className="wideButton" disabled={authSubmitting}>{authSubmitting ? 'Sending code...' : 'Create account'}</button>
               </form>
               {authNotice && <p className="authNotice" role="status">{authNotice}</p>}
@@ -811,7 +1014,12 @@ export default function App() {
             <>
               <form onSubmit={login}>
                 <label>Email<input placeholder="you@example.com" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required /></label>
-                <label>Password<input placeholder="Enter your password" type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required /></label>
+                <label>Password
+                  <span className="passwordField">
+                    <input placeholder="Enter your password" type={passwordVisible ? 'text' : 'password'} autoComplete="current-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required />
+                    <button type="button" className="passwordToggle" aria-label={passwordVisible ? 'Hide password' : 'Show password'} aria-pressed={passwordVisible} onClick={() => setPasswordVisible(visible => !visible)}>{passwordVisible ? 'Hide' : 'Show'}</button>
+                  </span>
+                </label>
                 <button className="wideButton" disabled={authSubmitting}>{authSubmitting ? 'Sending code...' : 'Sign in'}</button>
               </form>
               {authNotice && <p className="authNotice" role="status">{authNotice}</p>}
@@ -956,11 +1164,11 @@ export default function App() {
                 <div className="suggestionList setupSuggestionList">
                   {suggestionsLoading ? Array.from({ length: 6 }, (_, index) => (
                     <div className="suggestionSkeleton" key={index}><Skeleton className="skeletonCheck" /><Skeleton className="skeletonSuggestionText" /></div>
-                  )) : suggestions.map(title => (
-                    <label className={`suggestionOption ${selectedSuggestions.includes(title) ? 'checked' : ''}`} key={title}>
-                      <input type="checkbox" checked={selectedSuggestions.includes(title)} onChange={() => toggleSuggestion(title)} />
-                      <span className="customCheck" aria-hidden="true">{selectedSuggestions.includes(title) ? '✓' : ''}</span>
-                      <span>{title}</span>
+                  )) : suggestions.map(feature => (
+                    <label className={`suggestionOption ${selectedSuggestions.includes(feature.title) ? 'checked' : ''}`} key={feature.title}>
+                      <input type="checkbox" checked={selectedSuggestions.includes(feature.title)} onChange={() => toggleSuggestion(feature.title)} />
+                      <span className="customCheck" aria-hidden="true">{selectedSuggestions.includes(feature.title) ? '✓' : ''}</span>
+                      <span className="suggestionCopy"><b>{feature.title}</b><small>{feature.description}</small></span>
                     </label>
                   ))}
                 </div>
@@ -1061,19 +1269,22 @@ export default function App() {
                           {user.role === 'admin' && !adminConfirmed && <button onClick={confirmBudgetOffer}>Agree to this amount</button>}
                         </div>
                       )}
-                      {user.role === 'admin' && detail.project.clientOffer && (
+                      {user.role === 'admin' && detail.project.clientOffer && canAdminCounter && (
                         <form className="counterOfferForm" onSubmit={sendCounterOffer}>
                           <label>Counter offer (₹)<input type="number" min="0" step="0.01" value={counterOfferForm.amount} onChange={e => setCounterOfferForm({ ...counterOfferForm, amount: e.target.value })} placeholder="Enter counter offer" required /></label>
                           <label>Message to client<textarea maxLength="1000" value={counterOfferForm.notes} onChange={e => setCounterOfferForm({ ...counterOfferForm, notes: e.target.value })} placeholder="Explain the counter offer (optional)" /></label>
                           <button>{detail.project.counterOffer ? 'Update counter offer' : 'Send counter offer'}</button>
                         </form>
                       )}
+                      {user.role === 'admin' && detail.project.clientOffer && !canAdminCounter && (
+                        <p className="muted smallText">Waiting for the client to respond to the current offer.</p>
+                      )}
                       {user.role === 'client' && detail.project.clientOffer && (
                         <>
-                          <button type="button" className="secondary" onClick={toggleClientBudgetResponse}>
-                            {showClientBudgetResponse ? 'Close re-counter form' : 'Re-counter offer'}
+                          <button type="button" className="secondary" disabled={!showClientBudgetResponse && !canClientCounter} onClick={toggleClientBudgetResponse}>
+                            {showClientBudgetResponse ? 'Close budget response' : canClientCounter ? 'Re-counter offer' : 'Waiting for admin counter offer'}
                           </button>
-                          {showClientBudgetResponse && (
+                          {showClientBudgetResponse && canClientCounter && (
                             <form className="counterOfferForm" onSubmit={sendClientCounterOffer}>
                               <label>Re-counter offer (₹)<input type="number" min="0" step="0.01" value={clientCounterOfferForm.amount} onChange={e => setClientCounterOfferForm({ ...clientCounterOfferForm, amount: e.target.value })} placeholder="Enter your re-counter offer" required /></label>
                               <label>Message to admin<textarea maxLength="1000" value={clientCounterOfferForm.notes} onChange={e => setClientCounterOfferForm({ ...clientCounterOfferForm, notes: e.target.value })} placeholder="Explain your re-counter offer (optional)" /></label>
@@ -1109,47 +1320,46 @@ export default function App() {
               )}
 
               <section className="workspaceSection">
-                <div className="sectionTitle"><div><p className="eyebrow">CHANGE LOG</p><h3>Requirement history</h3></div></div>
-                {detail.versions.length === 0 && <p className="muted smallText">No versions have been saved yet.</p>}
-                {detail.versions.map((v, i) => (
-                  <article className="version" key={v._id}>
-                    <div className="inline versionTitle"><b>Version {v.version}</b><span className={v.confirmed ? 'confirmed' : 'status'}>{v.confirmed ? 'CONFIRMED' : 'PENDING'}</span></div>
-                    <div className="versionChanges">
-                      {v.changes.map((c, i) => (
-                        <div className={`versionChange ${c.tag.toLowerCase()}`} key={`${c.featureId || 'change'}-${i}`}>
-                          <span className="versionChangeIcon" aria-hidden="true">{c.tag === 'ADDED' ? '+' : c.tag === 'REMOVED' ? '−' : '↻'}</span>
-                          <div className="versionChangeBody">
-                            <span className={`tag ${c.tag.toLowerCase()}`}>{c.tag === 'ADDED' ? 'NEW REQUIREMENT' : c.tag}</span>
-                            <b className="versionChangeTitle">{c.title}</b>
-                            {c.description && <p>{c.description}</p>}
-                            {c.previous && <small>Previously: {c.previous.title}</small>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <details className="versionSnapshot" open={i === 0}>
-                      <summary>
-                        <span>Features included in this version</span>
-                        <span className="snapshotCount">{v.snapshot?.length || 0}</span>
-                      </summary>
-                      {v.snapshot?.length ? (
-                        <div className="versionSnapshotList">
-                          {v.snapshot.map(feature => (
-                            <div className="versionSnapshotFeature" key={feature.featureId}>
-                              <span aria-hidden="true">✓</span>
-                              <div><b>{feature.title}</b>{feature.description && <small>{feature.description}</small>}</div>
-                            </div>
-                          ))}
-                        </div>
-                      ) : <p className="muted smallText">No feature snapshot was recorded for this version.</p>}
-                    </details>
-                    {user.role === 'admin' && !v.confirmed && <button onClick={() => confirmVersion(v._id)}>Confirm this version</button>}
-                  </article>
-                ))}
+                <div className="sectionTitle"><div><p className="eyebrow">CURRENT VERSION</p><h3>{detail.versions[0] ? `Version ${detail.versions[0].version}` : 'Requirements'}</h3></div></div>
+                {detail.versions.length === 0 ? <p className="muted smallText">No versions have been saved yet.</p> : renderRequirementVersion(detail.versions[0], true)}
+                {detail.versions.length > 1 && (
+                  <details className="requirementHistory">
+                    <summary><span>History</span><span className="snapshotCount">{detail.versions.length - 1}</span></summary>
+                    {detail.versions.slice(1).map(version => renderRequirementVersion(version))}
+                  </details>
+                )}
               </section>
 
-              {user.role === 'admin' && <section className="subpanel"><p className="eyebrow">PRICING</p><h3>Quotation</h3><div className="quotationFields"><input value={quotation.description} onChange={e => setQuotation({ ...quotation, description: e.target.value })} placeholder="Item description" /><input type="number" min="0" value={quotation.amount} onChange={e => setQuotation({ ...quotation, amount: e.target.value })} aria-label="Quotation amount" /></div><textarea placeholder="Quotation notes" value={quotation.notes} onChange={e => setQuotation({ ...quotation, notes: e.target.value })} /><button onClick={sendQuotation}>Email quotation to client &amp; developer</button></section>}
-              {detail.quotation && <p className="success">Quotation total: ₹{detail.quotation.total} · {detail.quotation.sentAt ? 'Email sent' : 'Not sent'}</p>}
+              {user.role === 'admin' && (
+                <section className="subpanel">
+                  <p className="eyebrow">TEAM</p>
+                  <h3>Assign developer</h3>
+                  {developersLoading ? <p className="muted smallText">Loading developers...</p> : developers.length === 0 ? (
+                    <p className="muted smallText">No developer accounts found. Create a user with the developer role first.</p>
+                  ) : (
+                    <>
+                      <label htmlFor="project-developer">Developer</label>
+                      <select id="project-developer" value={selectedDeveloperId} onChange={e => setSelectedDeveloperId(e.target.value)}>
+                        <option value="">Select a developer</option>
+                        {developers.map(developer => (
+                          <option key={developer._id} value={developer._id}>{developer.name} ({developer.email})</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={assignDeveloper}
+                        disabled={developerAssignmentLoading || !selectedDeveloperId || selectedDeveloperId === (detail.project.developer?._id || '')}
+                      >
+                        {developerAssignmentLoading ? 'Assigning developer...' : detail.project.developer?._id ? 'Update developer' : 'Assign developer'}
+                      </button>
+                    </>
+                  )}
+                  {detail.project.developer && <p className="muted smallText">Assigned: {detail.project.developer.name} ({detail.project.developer.email})</p>}
+                  {developerError && <p className="error" role="alert">{developerError}</p>}
+                </section>
+              )}
+              {user.role === 'admin' && <section className="subpanel"><p className="eyebrow">PRICING</p><h3>Quotation</h3><label htmlFor="quotation-version">Requirement version</label><select id="quotation-version" value={selectedQuotationVersion} onChange={e => setSelectedQuotationVersion(e.target.value)}><option value="">Select a confirmed version</option>{detail.versions.filter(version => version.confirmed).map(version => <option key={version._id} value={version.version}>Version {version.version}</option>)}</select>{!detail.versions.some(version => version.confirmed) && <p className="muted smallText">Confirm a requirement version before sending a quotation.</p>}<div className="quotationFields"><label>Developer cost (₹)<input type="number" min="0" step="0.01" value={quotation.developerCost} onChange={e => setQuotation({ ...quotation, developerCost: e.target.value })} /></label><label>Other costs (₹)<input type="number" min="0" step="0.01" value={quotation.otherCosts} onChange={e => setQuotation({ ...quotation, otherCosts: e.target.value })} /></label></div><p className="muted smallText">Quotation total: {formatCurrency(Number(quotation.developerCost || 0) + Number(quotation.otherCosts || 0))}{Number.isFinite(detail.project.budgetNegotiation?.agreedAmount) ? ` · Agreed budget: ${formatCurrency(detail.project.budgetNegotiation.agreedAmount)}` : ''}</p><textarea placeholder="Quotation notes" value={quotation.notes} onChange={e => setQuotation({ ...quotation, notes: e.target.value })} /><button onClick={sendQuotation} disabled={quotationSending || !selectedQuotationVersion}>{quotationSending ? 'Sending quotation...' : 'Email quotation to client & developer'}</button>{quotationError && <p className="error" role="alert">{quotationError}</p>}</section>}
+              {detail.quotation && <p className={detail.quotation.sentAt ? 'success' : 'error'}>Quotation total: ₹{detail.quotation.total} · {detail.quotation.sentAt ? `Mail server accepted for ${detail.quotation.sentTo?.join(' and ')}. Check spam/junk if missing.` : detail.quotation.sentTo?.length ? `Mail server accepted for ${detail.quotation.sentTo.join(' and ')}; another recipient was not accepted.` : 'Email was not accepted by the mail server.'}</p>}
 
               <section className="workspaceSection discussionSection">
                 <p className="eyebrow">TEAM MESSAGES</p><h3>Discussion</h3>

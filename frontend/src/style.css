@@ -59,6 +59,10 @@ h1, h2, h3 { font-family: 'Segoe UI', Arial, sans-serif; color: var(--ink); }
 .muted { color: var(--muted); line-height: 1.6; }
 .smallText { font-size: 12px; }
 .authPanel form { display: grid; gap: 15px; margin-top: 24px; }
+.passwordField { position: relative; display: block; }
+.passwordField input { padding-right: 68px; }
+.passwordToggle { position: absolute; top: 50%; right: 7px; padding: 6px 8px; transform: translateY(-50%); background: transparent; color: var(--green-dark); font-size: 11px; }
+.passwordToggle:hover:not(:disabled) { transform: translateY(-50%); background: #f1f7f3; box-shadow: none; }
 .otpPrompt { margin: 18px 0 0; padding: 12px 14px; border: 1px solid #e4eee7; border-radius: 9px; background: #f6faf7; color: #64746a; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .otpPrompt b { color: #3d5346; }
 .otpForm { gap: 12px !important; margin-top: 20px !important; }
@@ -195,13 +199,16 @@ h1, h2, h3 { font-family: 'Segoe UI', Arial, sans-serif; color: var(--ink); }
 .suggestionSkeleton { display: flex; align-items: center; gap: 9px; min-height: 43px; padding: 7px 9px; border: 1px solid #e8ede9; border-radius: 8px; }
 .skeletonCheck { width: 17px; height: 17px; flex: 0 0 17px; border-radius: 5px; }
 .skeletonSuggestionText { width: min(78%, 190px); height: 11px; }
-.setupSuggestionList .suggestionOption { min-height: 43px; font-size: 12px; }
+.setupSuggestionList .suggestionOption { min-height: 62px; align-items: flex-start; font-size: 12px; }
 .setupActions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 3px; }
 .setupActions .wideButton { width: auto; min-width: 190px; }
 .suggestionOption { display: flex; grid-template-columns: none; align-items: center; gap: 9px; min-height: 37px; padding: 7px 9px; border: 1px solid #e8ede9; border-radius: 8px; color: #55615a; cursor: pointer; font-size: 11px; font-weight: 600; transition: .15s ease; }
 .suggestionOption:hover { border-color: #bed8c9; background: #f8fbf8; }
 .suggestionOption.checked { border-color: #b6d6c3; background: #f0f8f2; color: #28664d; }
 .suggestionOption input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.suggestionCopy { display: grid; min-width: 0; gap: 4px; }
+.suggestionCopy b { color: #435249; font-size: 11px; line-height: 1.4; }
+.suggestionCopy small { color: #77847c; font-size: 10px; font-weight: 400; line-height: 1.45; }
 .customCheck { width: 17px; height: 17px; flex: 0 0 17px; display: grid; place-items: center; border: 1px solid #cbd6cf; border-radius: 5px; background: #fff; color: #fff; font-size: 11px; }
 .suggestionOption.checked .customCheck { border-color: var(--green); background: var(--green); }
 .suggestionOption input:focus-visible + .customCheck { outline: 3px solid rgb(35 117 93 / 25%); outline-offset: 2px; }
@@ -253,6 +260,12 @@ h1, h2, h3 { font-family: 'Segoe UI', Arial, sans-serif; color: var(--ink); }
 .versionSnapshot summary::-webkit-details-marker { display: none; }
 .versionSnapshot summary::after { margin-left: auto; color: #85938a; content: '+'; font-size: 16px; }
 .versionSnapshot[open] summary::after { content: '−'; }
+.requirementHistory { margin-top: 14px; border-top: 1px solid var(--line); }
+.requirementHistory > summary { display: flex; align-items: center; gap: 9px; min-height: 48px; color: #45554d; cursor: pointer; font-size: 13px; font-weight: 700; list-style: none; }
+.requirementHistory > summary::-webkit-details-marker { display: none; }
+.requirementHistory > summary::after { margin-left: auto; color: #85938a; content: '+'; font-size: 19px; font-weight: 400; }
+.requirementHistory[open] > summary::after { content: '−'; }
+.requirementHistory > .version:first-of-type { margin-top: 0; }
 .snapshotCount { display: grid; min-width: 22px; height: 22px; place-items: center; padding: 0 6px; border-radius: 7px; background: #edf5f0; color: var(--green); font-size: 10px; font-weight: 800; }
 .versionSnapshotList { display: grid; gap: 7px; padding: 1px 0 4px; }
 .versionSnapshotFeature { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border: 1px solid #edf1ee; border-radius: 8px; background: #fcfdfc; }
@@ -330,16 +343,40 @@ h1, h2, h3 { font-family: 'Segoe UI', Arial, sans-serif; color: var(--ink); }
   .featureList { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 840px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .sidebar, .content { min-width: 0; }
+  .projectNav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .counterOfferForm { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .counterOfferForm button { grid-column: 1 / -1; }
+}
+
 @media (max-width: 720px) {
-  .shell { padding: 15px 12px 30px; }
+  .shell { padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); }
   .otpPage { padding: 30px 24px; }
   .otpDigitGroup { gap: 7px; }
   .otpDigitGroup input { height: 52px; font-size: 21px; }
-  .appHeader { align-items: flex-start; flex-direction: column; gap: 15px; }
-  .brand h1 { font-size: 18px; }
-  .user { width: 100%; }
-  .user .secondary { margin-left: auto; }
-  .layout { grid-template-columns: 1fr; }
+  .appHeader { align-items: center; flex-direction: row; gap: 8px; margin-bottom: 14px; }
+  .brand { min-width: 0; gap: 8px; }
+  .brandMark { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; font-size: 13px; }
+  .brand h1 { overflow: hidden; font-size: 15px; text-overflow: ellipsis; white-space: nowrap; }
+  .brand .eyebrow { font-size: 8px; letter-spacing: 1.3px; }
+  .user { width: auto; flex: 0 0 auto; }
+  .userMeta { min-width: 0; max-width: 78px; }
+  .userMeta b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .userMeta small { display: none; }
+  .profileTrigger { gap: 5px; padding: 3px 4px; }
+  .userAvatar { width: 33px; height: 33px; }
+  .user .secondary { margin-left: 0; }
+  .layout { grid-template-columns: 1fr; gap: 13px; }
+  .panel { border-radius: 17px; box-shadow: 0 8px 24px rgb(34 58 47 / 6%); }
+  .sidebar, .content { border-radius: 17px; }
+  .projectNav { display: flex; gap: 8px; overflow-x: auto; margin: 13px -2px 16px; padding: 2px 2px 7px; scroll-snap-type: x mandatory; }
+  .projectLink { flex: 0 0 min(82vw, 290px); min-height: 60px; border: 1px solid #e8eee9; border-radius: 11px; background: #fff; scroll-snap-align: start; }
+  .projectLink.active { border-color: #b6d6c3; }
+  .projectLinkText { font-size: 13px; }
+  .projectLinkText small { font-size: 11px; }
+  .projectLinkText .requestedAt { font-size: 10px; }
   .setupFields { grid-template-columns: 1fr; }
   .skeletonFeatureGrid { grid-template-columns: 1fr; }
   .setupDescription { grid-column: auto; }
@@ -357,12 +394,77 @@ h1, h2, h3 { font-family: 'Segoe UI', Arial, sans-serif; color: var(--ink); }
   .profileDropdown { right: 0; width: min(248px, calc(100vw - 24px)); }
   .counterOfferForm button { width: 100%; }
   .budgetMessageForm button { width: 100%; }
-  .sidebar { padding: 18px; }
-  .content { min-height: 380px; padding: 20px 17px; }
+  .sidebar { padding: 17px 16px; }
+  .content { min-height: 0; padding: 23px 18px; }
+  .sectionTitle h2 { font-size: 19px; }
+  .sectionTitle h3, .offerPanel .sectionTitle h3 { font-size: 18px; }
+  .setupIntro { margin: 0 0 20px; text-align: left; }
+  .setupIntro h2 { font-size: 24px; line-height: 1.2; }
+  .setupIntro .muted { font-size: 14px; line-height: 1.6; }
+  .setupFields { gap: 14px; padding: 0; border: 0; background: transparent; }
+  .setupFields label { gap: 8px; font-size: 13px; }
+  .setupFields input, .setupFields textarea, .setupFields select { min-height: 48px; font-size: 15px; }
+  .setupFields textarea { min-height: 96px; }
+  .setupSuggestionHeader { align-items: flex-start; }
+  .setupSuggestionHeader b { font-size: 16px; }
+  .setupSuggestionHeader small { font-size: 12px; line-height: 1.45; }
+  .setupSuggestionHeader > span { padding: 7px 9px; font-size: 11px; }
+  .setupSuggestionList { height: min(42vh, 360px); max-height: 360px; gap: 9px; padding: 3px; }
+  .setupSuggestionList .suggestionOption { min-height: 76px; gap: 11px; padding: 12px; border-radius: 11px; }
+  .suggestionCopy { gap: 5px; }
+  .suggestionCopy b { font-size: 13px; }
+  .suggestionCopy small { font-size: 12px; line-height: 1.5; }
+  .selectionHint { font-size: 12px; line-height: 1.55; }
+  .setupActions { gap: 9px; }
+  .setupActions button { min-height: 48px; font-size: 14px; }
   .projectHeading { flex-direction: column; gap: 12px; }
-  .projectHeading h2 { font-size: 22px; }
+  .projectHeading h2 { font-size: 23px; line-height: 1.2; }
+  .projectDescription { font-size: 14px; }
+  .typeLabel { font-size: 11px; }
   .inline { flex-wrap: wrap; }
-  .featureForm > * { width: 100%; flex: auto; }
+  .featureForm { align-items: stretch; flex-direction: column; }
+  .featureForm > * { width: 100%; flex: none; }
+  .discussionForm { align-items: stretch; flex-direction: column; }
+  .discussionForm input, .discussionForm button { width: 100%; }
+  .workspaceSection > button, .subpanel > button { width: 100%; }
   .quotationFields { grid-template-columns: 1fr; }
+  .content input:not([type="checkbox"]), .content select { min-height: 46px; }
+  .content textarea { min-height: 92px; }
+  .content button, .sidebar button { min-height: 46px; }
+  .featureCard { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; padding: 14px; border-radius: 12px; }
+  .featureCopy b { font-size: 14px; line-height: 1.45; }
+  .featureCopy p, .chat { font-size: 13px; line-height: 1.55; }
+  .featureActions { grid-column: 2; justify-content: flex-start; }
+  .featureActions button { min-height: 40px; font-size: 11px; }
+  .workspaceSection { padding: 21px 0; }
+  .offerCard { gap: 8px; padding: 15px; border-radius: 12px; }
+  .offerCard > span { font-size: 11px; }
+  .offerCard strong { font-size: 20px; }
+  .offerCard p, .version p { font-size: 13px; line-height: 1.55; }
+  .version { padding: 15px; border-radius: 12px; }
+  .chat { padding: 13px; }
   .empty { margin: 65px auto; }
+}
+
+@media (max-width: 480px) {
+  .shell { padding: 10px 8px 22px; }
+  .auth { padding: 14px; }
+  .authPanel, .otpPage { padding: 26px 18px; }
+  .otpDigitGroup { gap: 4px; }
+  .otpDigitGroup input { height: 48px; font-size: 19px; }
+  .brand h1 { max-width: 42vw; font-size: 14px; }
+  .sidebar { padding: 16px 14px; }
+  .content { padding: 21px 16px; }
+  .projectHeading h2 { font-size: 22px; overflow-wrap: anywhere; }
+  .offerPanel, .subpanel { padding: 14px; }
+  .featureCard { padding: 14px; }
+  .messageSuggestion { min-height: 40px; font-size: 11px; }
+  .aboutDetails { align-items: flex-start; padding: 14px; }
+  .aboutMeta p { flex-direction: column; gap: 4px; }
+}
+
+@media (max-width: 360px) {
+  .userMeta { display: none; }
+  .profileTrigger { gap: 3px; }
+  .profileChevron { display: none; }
 }

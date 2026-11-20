@@ -1,6 +1,13 @@
 const mongoose = require("mongoose");
+const { randomBytes } = require("crypto");
 const quotationSchema = new mongoose.Schema(
   {
+    quotationNumber: {
+      type: String,
+      required: true,
+      unique: true,
+      default: () => `QT-${Date.now()}-${randomBytes(4).toString("hex").toUpperCase()}`,
+    },
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",

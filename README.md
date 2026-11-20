@@ -20,12 +20,12 @@ copy .env.example .env
 Edit `.env`:
 - `MONGO_URI`: your MongoDB connection string
 - `JWT_SECRET`: long random secret
-- `EMAIL_USER`: Gmail address used to send verification codes and quotations
-- `EMAIL_PASS`: Google App Password (not your normal Gmail password)
+- Gmail: set `EMAIL_USER` and `EMAIL_PASS` to a Gmail address and Google App Password (not your normal Gmail password).
+- Non-Gmail: remove `EMAIL_USER` / `EMAIL_PASS`, then set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` to your provider's SMTP settings and credentials.
 
 Enable 2-Step Verification on the Gmail account and create an App Password. Legacy `SMTP_USER`/`SMTP_PASS` and lowercase `email_user`/`email_pass` variables are also supported.
 
-New client registrations require email verification. Password sign-ins also require a six-digit email code. Codes expire after 10 minutes, allow five attempts, and can be resent once per minute.
+New client registrations require email verification. Verified users sign in directly; unverified accounts receive a six-digit verification code when they sign in. Codes expire after 10 minutes, allow five attempts, and can be resent once per minute.
 
 Run:
 ```bash
@@ -48,12 +48,12 @@ VITE_API_URL=http://localhost:5000/api
 
 ## Important API endpoints
 - `POST /api/auth/register` — creates an unverified client account and emails a verification code
-- `POST /api/auth/login` — validates credentials and emails a sign-in code
+- `POST /api/auth/login` — validates credentials; creates a session for verified users and emails a verification code to unverified users
 - `POST /api/auth/verify-otp` — verifies `{ "email": "...", "otp": "123456", "challengeToken": "..." }` and creates the auth session
 - `POST /api/auth/resend-otp` — resends a code using the active email and challenge token
 - `POST /api/auth/logout` — invalidates the current token and clears the auth cookie
 - `GET /api/projects` — role-filtered projects
-- `GET /api/projects/suggestions/:level` — project feature suggestions by scope
+- `GET /api/projects/suggestions/:level` — project feature suggestions with helper descriptions by scope
 - `GET /api/projects/:id/budget-suggestions` — client-only suggested budget messages, tailored to the project's negotiation status
 - `POST /api/projects` — client creates a project with `websiteType`, `offerAmount`, `offerNotes`, and manually selected `selectedFeatures`
 - `PATCH /api/projects/:id/counter-offer` — admin submits or updates a counter offer (`{ "amount": 5000, "notes": "..." }`)
@@ -64,8 +64,9 @@ VITE_API_URL=http://localhost:5000/api
 - `DELETE /api/projects/:id/features/:featureId` — admin marks feature removed (not physically deleted)
 - `POST /api/projects/:id/versions` — admin saves a version snapshot and automatic change tags
 - `POST /api/projects/:id/versions/:versionId/confirm` — admin confirms a version
-- `POST /api/projects/:id/quotation` — admin creates and emails quotation to client + assigned developer
+- `POST /api/projects/:id/quotation` — admin emails project details, client-submitted information, confirmed requirements, and developer/other cost line items to the client and assigned developer; total must be below the agreed budget when one exists. Optionally pass a confirmed `version` number to choose the requirement version.
 - `POST /api/projects/:id/developer` — admin assigns developer (`{ "developerId": "..." }`)
+- `GET /api/projects/developers` — admin lists users with the developer role for project assignment
 
 Logged-out tokens are stored as SHA-256 hashes in the `TokenBlacklist` collection until their expiry; MongoDB removes expired blacklist entries using a TTL index.
 
