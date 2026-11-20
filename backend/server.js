@@ -6,10 +6,9 @@ const connectDB = require("./config/db");
 const app = express();
 
 const allowedOrigins = [
+  "https://requirement-quotation-system-knurx87kd-paradox16.vercel.app",
   "http://localhost:5173",
   "https://requirement-quotation-system.vercel.app",
-  "https://requirement-quotation-system-b5sld7v2n-paradox16.vercel.app",
-];
 
 app.use(
   cors({
