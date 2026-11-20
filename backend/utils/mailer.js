@@ -11,18 +11,19 @@ const smtpPort = Number(process.env.SMTP_PORT || 587);
 const smtpSecure = process.env.SMTP_SECURE
   ? process.env.SMTP_SECURE.toLowerCase() === "true"
   : smtpPort === 465;
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: Number(process.env.SMTP_PORT || 465),
-  secure: (process.env.SMTP_SECURE || "true") === "true",
-  auth: {
-    user: emailUser,
-    pass: emailPass,
-  },
-  connectionTimeout: 15000,
-  greetingTimeout: 15000,
-  socketTimeout: 20000,
-});
+const transporter = nodemailer.createTransport(
+  smtpHost
+    ? {
+        host: "smtp.gmail.com",
+        port: 465 || 587,
+        secure: true,
+        auth: { user: emailUser, pass: emailPass },
+      }
+    : {
+        service: "gmail",
+        auth: { user: emailUser, pass: emailPass },
+      },
+);
 
 function requireMailCredentials() {
   if (!emailUser || !emailPass) {
