@@ -1359,7 +1359,22 @@ export default function App() {
                 </section>
               )}
               {user.role === 'admin' && <section className="subpanel"><p className="eyebrow">PRICING</p><h3>Quotation</h3><label htmlFor="quotation-version">Requirement version</label><select id="quotation-version" value={selectedQuotationVersion} onChange={e => setSelectedQuotationVersion(e.target.value)}><option value="">Select a confirmed version</option>{detail.versions.filter(version => version.confirmed).map(version => <option key={version._id} value={version.version}>Version {version.version}</option>)}</select>{!detail.versions.some(version => version.confirmed) && <p className="muted smallText">Confirm a requirement version before sending a quotation.</p>}<div className="quotationFields"><label>Developer cost (₹)<input type="number" min="0" step="0.01" value={quotation.developerCost} onChange={e => setQuotation({ ...quotation, developerCost: e.target.value })} /></label><label>Other costs (₹)<input type="number" min="0" step="0.01" value={quotation.otherCosts} onChange={e => setQuotation({ ...quotation, otherCosts: e.target.value })} /></label></div><p className="muted smallText">Quotation total: {formatCurrency(Number(quotation.developerCost || 0) + Number(quotation.otherCosts || 0))}{Number.isFinite(detail.project.budgetNegotiation?.agreedAmount) ? ` · Agreed budget: ${formatCurrency(detail.project.budgetNegotiation.agreedAmount)}` : ''}</p><textarea placeholder="Quotation notes" value={quotation.notes} onChange={e => setQuotation({ ...quotation, notes: e.target.value })} /><button onClick={sendQuotation} disabled={quotationSending || !selectedQuotationVersion}>{quotationSending ? 'Sending quotation...' : 'Email quotation to client & developer'}</button>{quotationError && <p className="error" role="alert">{quotationError}</p>}</section>}
-              {detail.quotation && <p className={detail.quotation.sentAt ? 'success' : 'error'}>Quotation total: ₹{detail.quotation.total} · {detail.quotation.sentAt ? `Mail server accepted for ${detail.quotation.sentTo?.join(' and ')}. Check spam/junk if missing.` : detail.quotation.sentTo?.length ? `Mail server accepted for ${detail.quotation.sentTo.join(' and ')}; another recipient was not accepted.` : 'Email was not accepted by the mail server.'}</p>}
+              {detail.quotation && user.role === 'client' && (
+                <p className={detail.quotation.sentTo?.some(email => email.toLowerCase() === user.email?.toLowerCase()) ? 'success' : 'error'}>
+                  {detail.quotation.sentTo?.some(email => email.toLowerCase() === user.email?.toLowerCase())
+                    ? 'Quotation sent to your email by TXO Company Ltd.'
+                    : 'Quotation email could not be delivered. Please contact TXO Company Ltd.'}
+                </p>
+              )}
+              {detail.quotation && user.role === 'admin' && (
+                <p className={detail.quotation.sentAt ? 'success' : 'error'}>
+                  Quotation total: ₹{detail.quotation.total} · {detail.quotation.sentAt
+                    ? `Mail server accepted for ${detail.quotation.sentTo?.join(' and ')}. Check spam/junk if missing.`
+                    : detail.quotation.sentTo?.length
+                      ? `Mail server accepted for ${detail.quotation.sentTo.join(' and ')}; another recipient was not accepted.`
+                      : 'Email was not accepted by the mail server.'}
+                </p>
+              )}
 
               <section className="workspaceSection discussionSection">
                 <p className="eyebrow">TEAM MESSAGES</p><h3>Discussion</h3>
